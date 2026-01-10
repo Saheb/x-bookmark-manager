@@ -165,33 +165,37 @@ async function autoScrollAndScrape(existingIds) {
     let scrollAttempts = 0;
     let lastHeight = 0;
     let noNewContentCount = 0;
-    let consecutiveKnownCount = 0;
-    const STOP_AFTER_KNOWN = 3; // Stop after finding 3 consecutive known bookmarks
+    let consecutiveScrollsWithOnlyKnown = 0;
+    const STOP_AFTER_KNOWN_SCROLLS = 2; // Stop after 2 scrolls finding only known bookmarks
 
     while (scrollAttempts < maxScrollAttempts && noNewContentCount < 3) {
-        // Scrape visible tweets
-        const beforeCount = scrapedTweets.size;
-        const knownFound = scrapeTweets(existingIds);
-        const afterCount = scrapedTweets.size;
+        // Scrape visible tweets and get stats
+        const beforeSize = scrapedTweets.size;
+        const stats = scrapeTweets(existingIds);
+        const afterSize = scrapedTweets.size;
 
-        // Track consecutive known bookmarks
-        if (knownFound > 0 && afterCount === beforeCount) {
-            consecutiveKnownCount += knownFound;
-        } else if (afterCount > beforeCount) {
-            consecutiveKnownCount = 0; // Reset when we find new bookmarks
+        const newlyScraped = afterSize - beforeSize; // Tweets added this iteration
+        const newBookmarks = stats.newToDb; // Tweets that aren't in DB
+
+        updateIndicator(`Syncing... (${afterSize} found, ${stats.alreadyInDb} already saved)`, true);
+
+        // If we scraped new tweets this iteration, but they're ALL already in DB
+        if (newlyScraped > 0 && newBookmarks === 0) {
+            consecutiveScrollsWithOnlyKnown++;
+            console.log(`[Twitter Bookmark Manager] Scroll ${scrollAttempts}: Found ${newlyScraped} tweets, all already saved (${consecutiveScrollsWithOnlyKnown}/${STOP_AFTER_KNOWN_SCROLLS})`);
+        } else if (newBookmarks > 0) {
+            // Found at least one genuinely new bookmark
+            consecutiveScrollsWithOnlyKnown = 0;
         }
 
-        const newCount = afterCount - (existingIds.size - consecutiveKnownCount);
-        updateIndicator(`Syncing... (${afterCount} found, ${consecutiveKnownCount} known)`, true);
-
-        // Stop if we've hit too many known bookmarks in a row
-        if (consecutiveKnownCount >= STOP_AFTER_KNOWN) {
-            console.log('[Twitter Bookmark Manager] Stopping early - found known bookmarks');
+        // Stop if we've had multiple scrolls with only known bookmarks
+        if (consecutiveScrollsWithOnlyKnown >= STOP_AFTER_KNOWN_SCROLLS) {
+            console.log('[Twitter Bookmark Manager] Stopping early - only finding already-saved bookmarks');
             break;
         }
 
-        // Check if we got new content
-        if (afterCount === beforeCount) {
+        // Check if we got new content (for detecting end of page)
+        if (afterSize === beforeSize) {
             noNewContentCount++;
         } else {
             noNewContentCount = 0;
@@ -215,19 +219,24 @@ async function autoScrollAndScrape(existingIds) {
 }
 
 function scrapeTweets(existingIds = new Set()) {
-    // Twitter uses article elements for tweets
     const tweetElements = document.querySelectorAll('article[data-testid="tweet"]');
-    let knownCount = 0;
+    let alreadyInDb = 0;
+    let newToDb = 0;
 
     tweetElements.forEach(tweet => {
         try {
             const tweetData = extractTweetData(tweet);
             if (tweetData && tweetData.tweetId) {
-                if (existingIds.has(tweetData.tweetId)) {
-                    knownCount++;
-                }
+                // Only process tweets we haven't seen in THIS scrape session
                 if (!scrapedTweets.has(tweetData.tweetId)) {
                     scrapedTweets.set(tweetData.tweetId, tweetData);
+
+                    // Check if it's already in our database
+                    if (existingIds.has(tweetData.tweetId)) {
+                        alreadyInDb++;
+                    } else {
+                        newToDb++;
+                    }
                 }
             }
         } catch (e) {
@@ -235,7 +244,7 @@ function scrapeTweets(existingIds = new Set()) {
         }
     });
 
-    return knownCount;
+    return { alreadyInDb, newToDb };
 }
 
 function extractTweetData(tweetElement) {
