@@ -26,10 +26,12 @@
   "content_scripts": [
     {
       "matches": [
-        "https://twitter.com/i/bookmarks*",
-        "https://x.com/i/bookmarks*"
+        "https://twitter.com/*",
+        "https://x.com/*"
       ],
-      "js": ["content.js"],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_idle"
     }
   ],
@@ -38,8 +40,16 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-  "web_accessible_resources": [{
-    "resources": ["viewer.html", "viewer.css", "viewer.js"],
-    "matches": ["<all_urls>"]
-  }]
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "viewer.html",
+        "viewer.css",
+        "viewer.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ]
 }

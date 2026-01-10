@@ -2,6 +2,7 @@
 
 let isScrapingActive = false;
 let scrapedTweets = new Map();
+let indicatorInjected = false;
 
 // Listen for messages from popup/background
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -17,11 +18,39 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
 });
 
-// Auto-detect if we're on bookmarks page and show indicator
-if (window.location.pathname.includes('/i/bookmarks')) {
-    console.log('[Twitter Bookmark Manager] Ready to sync bookmarks');
-    injectStatusIndicator();
+// Check if we're on bookmarks page and inject indicator
+function checkAndInjectIndicator() {
+    const isBookmarksPage = window.location.pathname.includes('/i/bookmarks');
+    const indicator = document.getElementById('tbm-indicator');
+
+    if (isBookmarksPage && !indicator) {
+        console.log('[Twitter Bookmark Manager] Bookmarks page detected, injecting sync button');
+        injectStatusIndicator();
+        indicatorInjected = true;
+    } else if (!isBookmarksPage && indicator) {
+        // Remove indicator if we navigated away
+        indicator.remove();
+        indicatorInjected = false;
+    }
 }
+
+// Initial check
+checkAndInjectIndicator();
+
+// Monitor for SPA navigation (Twitter is a single-page app)
+let lastUrl = window.location.href;
+const urlObserver = new MutationObserver(() => {
+    if (window.location.href !== lastUrl) {
+        lastUrl = window.location.href;
+        checkAndInjectIndicator();
+    }
+});
+
+// Observe document for URL changes (Twitter uses history.pushState)
+urlObserver.observe(document.body, { childList: true, subtree: true });
+
+// Also check periodically in case mutations are missed
+setInterval(checkAndInjectIndicator, 2000);
 
 function injectStatusIndicator() {
     const indicator = document.createElement('div');
