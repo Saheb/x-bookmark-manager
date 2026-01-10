@@ -137,7 +137,7 @@ async function autoScrollAndScrape(existingIds) {
     let lastHeight = 0;
     let noNewContentCount = 0;
     let consecutiveKnownCount = 0;
-    const STOP_AFTER_KNOWN = 10; // Stop after finding 10 consecutive known bookmarks
+    const STOP_AFTER_KNOWN = 3; // Stop after finding 3 consecutive known bookmarks
 
     while (scrollAttempts < maxScrollAttempts && noNewContentCount < 3) {
         // Scrape visible tweets
