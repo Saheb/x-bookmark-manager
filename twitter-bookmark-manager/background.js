@@ -17,8 +17,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 async function handleMessage(message, sender) {
     switch (message.type) {
         case 'SAVE_BOOKMARKS':
-            const savedCount = await saveBookmarks(message.bookmarks);
-            return { success: true, count: savedCount };
+            const result = await saveBookmarks(message.bookmarks);
+            return { success: true, count: result.total, added: result.added };
 
         case 'GET_ALL_BOOKMARKS':
             const bookmarks = await getAllBookmarks();

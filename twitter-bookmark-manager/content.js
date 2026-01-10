@@ -102,14 +102,17 @@ async function startScraping() {
 
         // Send collected bookmarks to background
         const bookmarks = Array.from(scrapedTweets.values());
+        let addedCount = 0;
+
         if (bookmarks.length > 0) {
-            await chrome.runtime.sendMessage({
+            const response = await chrome.runtime.sendMessage({
                 type: 'SAVE_BOOKMARKS',
                 bookmarks: bookmarks
             });
+            addedCount = response && response.added !== undefined ? response.added : bookmarks.length;
         }
 
-        updateIndicator(`✅ Synced ${bookmarks.length} bookmarks`, false);
+        updateIndicator(`✅ Added ${addedCount} new bookmarks`, false);
         setTimeout(() => updateIndicator('📚 Sync Bookmarks', false), 3000);
 
     } catch (error) {

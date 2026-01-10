@@ -41,6 +41,8 @@ async function loadBookmarks() {
     try {
         const response = await chrome.runtime.sendMessage({ type: 'GET_ALL_BOOKMARKS' });
         allBookmarks = response.bookmarks || [];
+        // Sort by tweet timestamp, most recent first
+        allBookmarks.sort((a, b) => new Date(b.timestamp || b.savedAt) - new Date(a.timestamp || a.savedAt));
         filteredBookmarks = allBookmarks;
         updateUI();
     } catch (error) {
@@ -147,12 +149,8 @@ async function handleSync() {
         const response = await chrome.runtime.sendMessage({ type: 'TRIGGER_SYNC' });
 
         if (response.success) {
-            showStatus('Syncing in progress... Scroll will happen automatically', 'info');
-            // Reload bookmarks after a delay
-            setTimeout(async () => {
-                await loadBookmarks();
-                showStatus(`Synced ${allBookmarks.length} bookmarks`, 'success');
-            }, 5000);
+            showStatus('Sync started! Watch the page...', 'success');
+            setTimeout(() => window.close(), 1500);
         } else {
             showStatus(response.message || 'Error starting sync', 'error');
         }
