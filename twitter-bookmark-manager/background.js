@@ -52,8 +52,18 @@ async function handleMessage(message, sender) {
             // Forward to content script in active tab
             const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
             if (tab && (tab.url?.includes('twitter.com/i/bookmarks') || tab.url?.includes('x.com/i/bookmarks'))) {
-                chrome.tabs.sendMessage(tab.id, { type: 'START_SCRAPE' });
-                return { success: true, message: 'Sync started' };
+                try {
+                    // Wait for content script to acknowledge
+                    const response = await chrome.tabs.sendMessage(tab.id, { type: 'START_SCRAPE' });
+                    if (response && response.success) {
+                        return { success: true, message: 'Sync started' };
+                    } else {
+                        return { success: false, message: 'Content script not responding. Try refreshing the page.' };
+                    }
+                } catch (err) {
+                    console.error('Error sending to content script:', err);
+                    return { success: false, message: 'Could not start sync. Try refreshing the page.' };
+                }
             } else {
                 return { success: false, message: 'Please navigate to Twitter Bookmarks page first' };
             }

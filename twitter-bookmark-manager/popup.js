@@ -133,38 +133,49 @@ function createBookmarkCard(bookmark) {
 
 async function handleSync() {
     syncBtn.disabled = true;
-    syncBtn.innerHTML = '<div class="spinner"></div> Syncing...';
+    syncBtn.innerHTML = '<div class="spinner"></div> Starting...';
 
     try {
         // Check if we're on the bookmarks page
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
         if (!tab?.url?.includes('/i/bookmarks')) {
-            showStatus('Please navigate to Twitter Bookmarks page first', 'error');
+            showStatus('Opening Twitter Bookmarks page...', 'info');
             // Open bookmarks page
-            chrome.tabs.create({ url: 'https://twitter.com/i/bookmarks' });
+            await chrome.tabs.create({ url: 'https://x.com/i/bookmarks' });
+            setTimeout(() => {
+                showStatus('Navigate to the new tab and click Sync again', 'info');
+            }, 1000);
             return;
         }
 
         const response = await chrome.runtime.sendMessage({ type: 'TRIGGER_SYNC' });
 
         if (response.success) {
-            showStatus('Sync started! Watch the page...', 'success');
-            setTimeout(() => window.close(), 1500);
+            showStatus('✅ Sync started! Page is scrolling...', 'success');
+            syncBtn.innerHTML = '<div class="spinner"></div> Syncing...';
+            // Keep popup open a bit so user sees confirmation
+            setTimeout(() => window.close(), 2500);
         } else {
             showStatus(response.message || 'Error starting sync', 'error');
+            syncBtn.disabled = false;
+            syncBtn.innerHTML = `
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                <path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/>
+              </svg>
+              Sync Bookmarks
+            `;
         }
     } catch (error) {
         console.error('Sync error:', error);
-        showStatus('Error syncing bookmarks', 'error');
-    } finally {
+        showStatus('Error syncing bookmarks. Try refreshing the page.', 'error');
         syncBtn.disabled = false;
         syncBtn.innerHTML = `
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-        <path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/>
-      </svg>
-      Sync Bookmarks
-    `;
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+            <path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/>
+          </svg>
+          Sync Bookmarks
+        `;
     }
 }
 
