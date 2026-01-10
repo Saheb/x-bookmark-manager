@@ -1,6 +1,6 @@
 // Background service worker for Twitter Bookmark Manager
 
-import { initDB, saveBookmarks, getAllBookmarks, getBookmarkCount, searchBookmarks, deleteBookmark, clearAllBookmarks, exportAsJSON, exportAsCSV } from './db.js';
+import { initDB, saveBookmarks, getAllBookmarks, getBookmarkCount, getBookmarkIds, searchBookmarks, deleteBookmark, clearAllBookmarks, exportAsJSON, exportAsCSV } from './db.js';
 
 // Initialize database on extension load
 initDB().catch(console.error);
@@ -27,6 +27,10 @@ async function handleMessage(message, sender) {
         case 'GET_BOOKMARK_COUNT':
             const count = await getBookmarkCount();
             return { count };
+
+        case 'GET_BOOKMARK_IDS':
+            const ids = await getBookmarkIds();
+            return { ids };
 
         case 'SEARCH_BOOKMARKS':
             const results = await searchBookmarks(message.query);

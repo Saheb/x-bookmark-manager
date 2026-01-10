@@ -141,6 +141,22 @@ export async function getBookmarkCount() {
 }
 
 /**
+ * Get all bookmark IDs (for checking duplicates during sync)
+ */
+export async function getBookmarkIds() {
+  await initDB();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([STORE_NAME], 'readonly');
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.getAllKeys();
+
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/**
  * Search bookmarks by text
  */
 export async function searchBookmarks(query) {

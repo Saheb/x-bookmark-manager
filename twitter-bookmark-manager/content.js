@@ -95,10 +95,17 @@ async function startScraping() {
 
     isScrapingActive = true;
     scrapedTweets.clear();
-    updateIndicator('Syncing...', true);
+    updateIndicator('Loading...', true);
 
     try {
-        await autoScrollAndScrape();
+        // Fetch existing bookmark IDs for smart sync
+        const existingResponse = await chrome.runtime.sendMessage({ type: 'GET_BOOKMARK_IDS' });
+        const existingIds = new Set(existingResponse.ids || []);
+
+        updateIndicator(`Syncing... (${existingIds.size} existing)`, true);
+
+        // Smart scroll - stops when hitting known bookmarks
+        await autoScrollAndScrape(existingIds);
 
         // Send collected bookmarks to background
         const bookmarks = Array.from(scrapedTweets.values());
@@ -124,19 +131,35 @@ async function startScraping() {
     isScrapingActive = false;
 }
 
-async function autoScrollAndScrape() {
+async function autoScrollAndScrape(existingIds) {
     const maxScrollAttempts = 100;
     let scrollAttempts = 0;
     let lastHeight = 0;
     let noNewContentCount = 0;
+    let consecutiveKnownCount = 0;
+    const STOP_AFTER_KNOWN = 10; // Stop after finding 10 consecutive known bookmarks
 
     while (scrollAttempts < maxScrollAttempts && noNewContentCount < 3) {
         // Scrape visible tweets
         const beforeCount = scrapedTweets.size;
-        scrapeTweets();
+        const knownFound = scrapeTweets(existingIds);
         const afterCount = scrapedTweets.size;
 
-        updateIndicator(`Syncing... (${afterCount} found)`, true);
+        // Track consecutive known bookmarks
+        if (knownFound > 0 && afterCount === beforeCount) {
+            consecutiveKnownCount += knownFound;
+        } else if (afterCount > beforeCount) {
+            consecutiveKnownCount = 0; // Reset when we find new bookmarks
+        }
+
+        const newCount = afterCount - (existingIds.size - consecutiveKnownCount);
+        updateIndicator(`Syncing... (${afterCount} found, ${consecutiveKnownCount} known)`, true);
+
+        // Stop if we've hit too many known bookmarks in a row
+        if (consecutiveKnownCount >= STOP_AFTER_KNOWN) {
+            console.log('[Twitter Bookmark Manager] Stopping early - found known bookmarks');
+            break;
+        }
 
         // Check if we got new content
         if (afterCount === beforeCount) {
@@ -162,20 +185,28 @@ async function autoScrollAndScrape() {
     }
 }
 
-function scrapeTweets() {
+function scrapeTweets(existingIds = new Set()) {
     // Twitter uses article elements for tweets
     const tweetElements = document.querySelectorAll('article[data-testid="tweet"]');
+    let knownCount = 0;
 
     tweetElements.forEach(tweet => {
         try {
             const tweetData = extractTweetData(tweet);
-            if (tweetData && tweetData.tweetId && !scrapedTweets.has(tweetData.tweetId)) {
-                scrapedTweets.set(tweetData.tweetId, tweetData);
+            if (tweetData && tweetData.tweetId) {
+                if (existingIds.has(tweetData.tweetId)) {
+                    knownCount++;
+                }
+                if (!scrapedTweets.has(tweetData.tweetId)) {
+                    scrapedTweets.set(tweetData.tweetId, tweetData);
+                }
             }
         } catch (e) {
             console.warn('[Twitter Bookmark Manager] Error extracting tweet:', e);
         }
     });
+
+    return knownCount;
 }
 
 function extractTweetData(tweetElement) {
