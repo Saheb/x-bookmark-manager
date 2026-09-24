@@ -14,6 +14,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; // Keep channel open for async response
 });
 
+// X moved Bookmarks from /i/bookmarks to /i/history; its Likes tab (/i/history/likes) must not match
+function isBookmarksUrl(url) {
+    try {
+        const { hostname, pathname } = new URL(url);
+        return /(^|\.)(x|twitter)\.com$/.test(hostname) && /^\/i\/(bookmarks(\/|$)|history\/?$)/.test(pathname);
+    } catch {
+        return false;
+    }
+}
+
 async function handleMessage(message, sender) {
     switch (message.type) {
         case 'SAVE_BOOKMARKS':
@@ -55,7 +65,7 @@ async function handleMessage(message, sender) {
         case 'TRIGGER_SYNC':
             // Forward to content script in active tab
             const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-            if (tab && (tab.url?.includes('twitter.com/i/bookmarks') || tab.url?.includes('x.com/i/bookmarks'))) {
+            if (tab && isBookmarksUrl(tab.url)) {
                 try {
                     // Wait for content script to acknowledge
                     const response = await chrome.tabs.sendMessage(tab.id, { type: 'START_SCRAPE' });

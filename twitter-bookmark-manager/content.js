@@ -18,9 +18,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
 });
 
+// X moved Bookmarks from /i/bookmarks to /i/history; its Likes tab (/i/history/likes) must not match
+function onBookmarksPage() {
+    return /^\/i\/(bookmarks(\/|$)|history\/?$)/.test(window.location.pathname);
+}
+
 // Check if we're on bookmarks page and inject indicator
 function checkAndInjectIndicator() {
-    const isBookmarksPage = window.location.pathname.includes('/i/bookmarks');
+    const isBookmarksPage = onBookmarksPage();
     const indicator = document.getElementById('tbm-indicator');
 
     if (isBookmarksPage && !indicator) {
@@ -169,6 +174,12 @@ async function autoScrollAndScrape(existingIds) {
     const STOP_AFTER_KNOWN_SCROLLS = 2; // Stop after 2 scrolls finding only known bookmarks
 
     while (scrollAttempts < maxScrollAttempts && noNewContentCount < 3) {
+        // The Likes tab is one click away on the same page; never save likes as bookmarks
+        if (!onBookmarksPage()) {
+            console.log('[Twitter Bookmark Manager] Left the Bookmarks tab, stopping sync');
+            break;
+        }
+
         // Scrape visible tweets and get stats
         const beforeSize = scrapedTweets.size;
         const stats = scrapeTweets(existingIds);

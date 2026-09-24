@@ -139,10 +139,12 @@ async function handleSync() {
         // Check if we're on the bookmarks page
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
-        if (!tab?.url?.includes('/i/bookmarks')) {
+        // X moved Bookmarks from /i/bookmarks to /i/history; its Likes tab (/i/history/likes) must not match
+        const onBookmarksPage = /^https:\/\/(x|twitter)\.com\/i\/(bookmarks(\/|$|\?)|history\/?($|\?))/.test(tab?.url || '');
+        if (!onBookmarksPage) {
             showStatus('Opening Twitter Bookmarks page...', 'info');
             // Open bookmarks page
-            await chrome.tabs.create({ url: 'https://x.com/i/bookmarks' });
+            await chrome.tabs.create({ url: 'https://x.com/i/history' });
             setTimeout(() => {
                 showStatus('Navigate to the new tab and click Sync again', 'info');
             }, 1000);

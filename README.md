@@ -46,7 +46,7 @@ A Chrome extension to sync, search, and organize your Twitter/X bookmarks locall
 
 ### Syncing Bookmarks
 
-1. Go to [twitter.com/i/bookmarks](https://twitter.com/i/bookmarks) or [x.com/i/bookmarks](https://x.com/i/bookmarks)
+1. Go to [x.com/i/history](https://x.com/i/history) (X's Bookmarks tab; the old x.com/i/bookmarks redirects there)
 2. Click the floating **"📚 Sync Bookmarks"** button at the bottom right
 3. Wait while it auto-scrolls and captures your bookmarks
 4. You'll see a success message when complete
