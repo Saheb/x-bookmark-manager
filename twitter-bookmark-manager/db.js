@@ -59,7 +59,7 @@ export async function saveBookmark(bookmark) {
  */
 /**
  * Save multiple bookmarks
- * Returns { total: number, added: number }
+ * Returns { total: number, added: number, newBookmarks: Array }
  */
 export async function saveBookmarks(bookmarks) {
   await initDB();
@@ -68,6 +68,7 @@ export async function saveBookmarks(bookmarks) {
     const transaction = db.transaction([STORE_NAME], 'readwrite');
     const store = transaction.objectStore(STORE_NAME);
     let added = 0;
+    const newBookmarks = [];
 
     // We need to check existence first
     // This isn't atomic per se but fine for this use case
@@ -79,6 +80,7 @@ export async function saveBookmarks(bookmarks) {
       bookmarks.forEach(bookmark => {
         if (!existingIds.has(bookmark.tweetId)) {
           added++;
+          newBookmarks.push(bookmark);
           bookmark.savedAt = bookmark.savedAt || new Date().toISOString();
         } else {
           // Preserve original savedAt if already exists, or update if we want to track 'last seen'?
@@ -97,7 +99,7 @@ export async function saveBookmarks(bookmarks) {
       });
     };
 
-    transaction.oncomplete = () => resolve({ total: bookmarks.length, added });
+    transaction.oncomplete = () => resolve({ total: bookmarks.length, added, newBookmarks });
     transaction.onerror = () => reject(transaction.error);
   });
 }

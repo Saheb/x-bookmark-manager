@@ -14,6 +14,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; // Keep channel open for async response
 });
 
+// Newly saved bookmarks also go to the local paper library app (~/home/paper-library), which
+// summarizes the paper-looking ones. If it isn't running, they wait in storage for the next sync.
+const PAPER_LIBRARY_URL = 'http://127.0.0.1:8765/api/bookmarks';
+
+async function pushToPaperLibrary(newBookmarks) {
+    const { pendingForLibrary = [] } = await chrome.storage.local.get('pendingForLibrary');
+    const batch = [...pendingForLibrary, ...newBookmarks].slice(-1000);
+    if (!batch.length) return;
+    try {
+        const r = await fetch(PAPER_LIBRARY_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Paper-Library': '1' },
+            body: JSON.stringify(batch),
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        await chrome.storage.local.set({ pendingForLibrary: [] });
+    } catch (err) {
+        console.warn('Paper library not reachable, will retry on next sync:', err.message);
+        await chrome.storage.local.set({ pendingForLibrary: batch });
+    }
+}
+
 // X moved Bookmarks from /i/bookmarks to /i/history; its Likes tab (/i/history/likes) must not match
 function isBookmarksUrl(url) {
     try {
@@ -28,6 +50,7 @@ async function handleMessage(message, sender) {
     switch (message.type) {
         case 'SAVE_BOOKMARKS':
             const result = await saveBookmarks(message.bookmarks);
+            pushToPaperLibrary(result.newBookmarks); // fire and forget; sync UI doesn't wait on it
             return { success: true, count: result.total, added: result.added };
 
         case 'GET_ALL_BOOKMARKS':
