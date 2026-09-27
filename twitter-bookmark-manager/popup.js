@@ -21,6 +21,27 @@ document.addEventListener('DOMContentLoaded', init);
 async function init() {
     await loadBookmarks();
     setupEventListeners();
+    showAutoSyncStatus();
+}
+
+async function showAutoSyncStatus() {
+    const { lastAutoSync } = await chrome.storage.local.get('lastAutoSync');
+    if (!lastAutoSync) return;
+    const at = new Date(lastAutoSync.at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    document.getElementById('auto-sync-status').textContent = lastAutoSync.ok
+        ? `Background sync: ${at} · ${lastAutoSync.added} new`
+        : `Background sync failed ${at}: ${lastAutoSync.error}`;
+}
+
+async function runAutoSyncNow(e) {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    btn.textContent = 'Syncing…';
+    await chrome.runtime.sendMessage({ type: 'RUN_BACKGROUND_SYNC' });
+    btn.disabled = false;
+    btn.textContent = 'Run now';
+    await showAutoSyncStatus();
+    await loadBookmarks();
 }
 
 function setupEventListeners() {
@@ -31,6 +52,7 @@ function setupEventListeners() {
     clearSearchBtn.addEventListener('click', clearSearch);
     clearAllBtn.addEventListener('click', handleClearAll);
     openViewerBtn.addEventListener('click', openViewer);
+    document.getElementById('run-auto-sync').addEventListener('click', runAutoSyncNow);
 }
 
 function openViewer() {

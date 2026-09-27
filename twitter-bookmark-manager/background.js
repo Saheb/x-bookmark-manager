@@ -36,6 +36,51 @@ async function pushToPaperLibrary(newBookmarks) {
     }
 }
 
+// Background sync picks up bookmarks made elsewhere (e.g. on your phone) while Chrome is open
+const AUTO_SYNC_EVERY_MIN = 4 * 60;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function scheduleAutoSync() {
+    chrome.alarms.create('autoSync', { delayInMinutes: 2, periodInMinutes: AUTO_SYNC_EVERY_MIN });
+}
+chrome.runtime.onInstalled.addListener(scheduleAutoSync);
+chrome.runtime.onStartup.addListener(scheduleAutoSync);
+chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === 'autoSync') runBackgroundSync();
+});
+
+let backgroundSyncRunning = false;
+
+async function runBackgroundSync() {
+    if (backgroundSyncRunning) return { ok: false, error: 'already running' };
+    backgroundSyncRunning = true;
+    const record = { at: new Date().toISOString() };
+    let tab;
+    try {
+        tab = await chrome.tabs.create({ url: 'https://x.com/i/history', active: false });
+        const deadline = Date.now() + 5 * 60 * 1000;
+        // Wait for the page and content script, then start the same scrape the Sync button runs
+        for (let started = false; !started;) {
+            if (Date.now() > deadline) throw new Error('Bookmarks page never became ready (signed out of X?)');
+            await sleep(2000);
+            started = await chrome.tabs.sendMessage(tab.id, { type: 'START_SCRAPE' }).then((r) => r?.success, () => false);
+        }
+        let status;
+        do {
+            await sleep(3000);
+            status = await chrome.tabs.sendMessage(tab.id, { type: 'GET_SCRAPE_STATUS' });
+        } while (status?.isActive && Date.now() < deadline);
+        Object.assign(record, { ok: true, seen: status?.count ?? 0, added: status?.added ?? 0 });
+    } catch (err) {
+        Object.assign(record, { ok: false, error: err.message });
+    } finally {
+        if (tab) await chrome.tabs.remove(tab.id).catch(() => {});
+        backgroundSyncRunning = false;
+    }
+    await chrome.storage.local.set({ lastAutoSync: record });
+    return record;
+}
+
 // X moved Bookmarks from /i/bookmarks to /i/history; its Likes tab (/i/history/likes) must not match
 function isBookmarksUrl(url) {
     try {
@@ -52,6 +97,9 @@ async function handleMessage(message, sender) {
             const result = await saveBookmarks(message.bookmarks);
             pushToPaperLibrary(result.newBookmarks); // fire and forget; sync UI doesn't wait on it
             return { success: true, count: result.total, added: result.added };
+
+        case 'RUN_BACKGROUND_SYNC':
+            return await runBackgroundSync();
 
         case 'GET_ALL_BOOKMARKS':
             const bookmarks = await getAllBookmarks();

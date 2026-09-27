@@ -1,6 +1,7 @@
 // Content script for scraping Twitter bookmarks
 
 let isScrapingActive = false;
+let lastAddedCount = 0;
 let scrapedTweets = new Map();
 let indicatorInjected = false;
 
@@ -12,7 +13,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     } else if (message.type === 'GET_SCRAPE_STATUS') {
         sendResponse({
             isActive: isScrapingActive,
-            count: scrapedTweets.size
+            count: scrapedTweets.size,
+            added: lastAddedCount
         });
     }
     return true;
@@ -56,6 +58,35 @@ urlObserver.observe(document.body, { childList: true, subtree: true });
 
 // Also check periodically in case mutations are missed
 setInterval(checkAndInjectIndicator, 2000);
+
+// Catch bookmarks as they happen (the button, or X's "b" shortcut), so they're saved without a sync.
+// X only shows the bookmark button on some layouts (always on a tweet's own page).
+function captureBookmark(article) {
+    // X swaps the button to removeBookmark once the bookmark has gone through
+    setTimeout(() => {
+        if (!article.isConnected || !article.querySelector('[data-testid="removeBookmark"]')) return;
+        const data = extractTweetData(article);
+        if (!data?.tweetId) return;
+        try {
+            chrome.runtime.sendMessage({ type: 'SAVE_BOOKMARKS', bookmarks: [data] });
+            console.log('[Twitter Bookmark Manager] Saved new bookmark', data.tweetId);
+        } catch (e) {
+            // "Extension context invalidated" after the extension reloads; the next sync picks it up
+        }
+    }, 1500);
+}
+
+document.addEventListener('click', (e) => {
+    const article = e.target.closest?.('[data-testid="bookmark"]')?.closest('article[data-testid="tweet"]');
+    if (article) captureBookmark(article);
+}, true);
+
+document.addEventListener('keydown', (e) => {
+    if (e.key !== 'b' || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.target.closest?.('input, textarea, [contenteditable="true"]')) return;
+    const article = document.activeElement?.closest?.('article[data-testid="tweet"]');
+    if (article?.querySelector('[data-testid="bookmark"]')) captureBookmark(article);
+}, true);
 
 function injectStatusIndicator() {
     const indicator = document.createElement('div');
@@ -128,6 +159,7 @@ async function startScraping() {
     if (isScrapingActive) return;
 
     isScrapingActive = true;
+    lastAddedCount = 0;
     scrapedTweets.clear();
     updateIndicator('Loading...', true);
 
@@ -152,6 +184,7 @@ async function startScraping() {
             });
             addedCount = response && response.added !== undefined ? response.added : bookmarks.length;
         }
+        lastAddedCount = addedCount;
 
         updateIndicator(`✅ Added ${addedCount} new bookmarks`, false);
         setTimeout(() => updateIndicator('📚 Sync Bookmarks', false), 3000);
